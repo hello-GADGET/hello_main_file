@@ -20,8 +20,8 @@ from std_msgs.msg import Int32MultiArray
 
 BAUDRATE                    = 1000000
 PROTOCOL_VERSION            = 2.0
-IDS                         = [0]
-DEVICENAME                  = '/dev/ttyACM0'
+IDS                         = [0, 1, 2, 3, 4, 5]
+DEVICENAME                  = '/dev/ttyACM1'
 
 port_handler = PortHandler(DEVICENAME)
 packet_handler = PacketHandler(PROTOCOL_VERSION)
@@ -43,33 +43,14 @@ def init_dynamixel():
         
         if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
             print("operator motor ID %d 연결 실패" % dxl_id)
-        set_moving_speed(dxl_id, 25, 70)
 
-    for dxl_id in IDS: # 아이디가 한개인 경우        
-        packet_handler.write4ByteTxRx(port_handler, dxl_id, 116, 0)
+        set_moving_speed(dxl_id, 25, 70)
 
     print("operator ready") 
 
 def set_moving_speed(dxl_id, acceleration, velocity):
     packet_handler.write4ByteTxRx(port_handler, dxl_id, 108, acceleration) 
     packet_handler.write4ByteTxRx(port_handler, dxl_id, 112, velocity)
-
-#     if arm_positions != [0] * len(DXL_IDS_ARM):
-#         for i, dxl_id in enumerate(DXL_IDS_ARM):
-#             set_moving_speed(dxl_id, 0, 0)
-#             param_goal_positions[i] = [
-#                 DXL_LOBYTE(DXL_LOWORD(goal_positions[i])),
-#                 DXL_HIBYTE(DXL_LOWORD(goal_positions[i])),
-#                 DXL_LOBYTE(DXL_HIWORD(goal_positions[i])),
-#                 DXL_HIBYTE(DXL_HIWORD(goal_positions[i]))
-#             ]
-#             groupSyncWrite.addParam(dxl_id, param_goal_positions[i])
-            
-#         groupSyncWrite.txPacket()
-#         groupSyncWrite.clearParam() 
-    
-#     if gripper_position != 0: # 그리퍼를 별도로 제어
-#         packet_handler.write4ByteTxRx(port_handler, 11, 116, gripper_position)
 
 def move_to_position(position):
     for i, dxl_id in enumerate(IDS):
@@ -88,14 +69,19 @@ def main():
     # msg는 std_msgs.msg.Int32MultiArray 타입으로, data라는 리스트를 포함
     def callback(msg): # ro_master 토픽에서 1번 다이나믹셀의 위치값 수신 후 목표 위치 설정
         if len(msg.data) > 0:
-            goal_position = msg.data[0]  # 첫 번째 다이나믹셀 위치만 사용
-            move_to_position(goal_position)
-            
-            # data값을 여러개 받아야할 때
-            # goal_positions = msg.data  # 예: [2048, 2500, 1800, ...]
-            # for i, dxl_id in enumerate(IDS):
-            #     if i < len(goal_positions):
-            #         packet_handler.write4ByteTxRx(port_handler, dxl_id, 116, goal_positions[i])
+            goal_positions = msg.data  # data값을 여러개 받아야할 때
+            for i, dxl_id in enumerate(IDS):
+                if i < len(goal_positions):
+                    packet_handler.write4ByteTxRx(port_handler, dxl_id, 116, goal_positions[i])
+
+            gripper_id = IDS[5]
+            dxl_current_result, dxl_comm_result, dxl_error = packet_handler.read2ByteTxRx(port_handler, gripper_id, 126)
+            if dxl_comm_result != COMM_SUCCESS or dxl_error != 0 or dxl_current_result is None:
+                print(f"{gripper_id}: 오류(comm={dxl_comm_result}, err={dxl_error})")
+            else:
+                current = dxl_current_result if dxl_current_result < 32768 else dxl_current_result - 65536
+                print(f"{gripper_id}'<Gripper>': {current:>4} mA")
+            print("=" * 30)
 
     sub = node.create_subscription(Int32MultiArray, 'ro_robot', callback, 10)
     init_dynamixel()

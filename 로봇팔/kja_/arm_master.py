@@ -20,14 +20,12 @@ from std_msgs.msg import Int32MultiArray
 
 BAUDRATE                    = 1000000
 PROTOCOL_VERSION            = 2.0
-IDS                         = [1]
+IDS                         = [10, 11, 12, 13, 14, 15]
 DEVICENAME                  = '/dev/ttyACM0'
 
 port_handler = PortHandler(DEVICENAME)
 packet_handler = PacketHandler(PROTOCOL_VERSION)
 groupSyncRead = GroupSyncRead(port_handler, packet_handler, 132, 4)
-
-# controller_current = [50, 150, 100, 50]
 
 def init_dynamixel(): 
     if not port_handler.openPort():
@@ -42,20 +40,14 @@ def init_dynamixel():
     for dxl_id in IDS:
         packet_handler.write1ByteTxRx(port_handler, dxl_id, 64, 0) # Torque OFF
         packet_handler.write1ByteTxRx(port_handler, dxl_id, 11, 5) # 전류 기반 위치제어 모드
-        dxl_comm_result, dxl_error = packet_handler.write1ByteTxRx(port_handler, dxl_id, 64, 1) # Torque ON
+        # dxl_comm_result, dxl_error = packet_handler.write1ByteTxRx(port_handler, dxl_id, 64, 1) # Torque ON
+        # 현재 토크를 끈 상태인데, 토크를 켜고싶다면 주석 해제
+        # if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
+        #     print("motor ID %d 연결 실패" % dxl_id)
         
-        
-        if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
-            print("motor ID %d 연결 실패" % dxl_id)
-        
-        set_moving_speed(dxl_id, 20, 50) 
         packet_handler.write2ByteTxRx(port_handler, dxl_id, 102, 1) # 전류 제한 설정
-        packet_handler.write4ByteTxRx(port_handler, dxl_id, 116, 1024) # Goal Position Setting
+        # packet_handler.write4ByteTxRx(port_handler, dxl_id, 116, 1024) # Goal Position Setting
         groupSyncRead.addParam(dxl_id) # 현재 아이디를 등록, groupSyncRead.txRxPacket()으로 한 번에 현재 위치 읽기 가능
-
-def set_moving_speed(dxl_id, acceleration, velocity): # 속도와 가속도를 설정하는 함수
-    packet_handler.write4ByteTxRx(port_handler, dxl_id, 108, acceleration) 
-    packet_handler.write4ByteTxRx(port_handler, dxl_id, 112, velocity)
     
 def read_position(pub_arm): 
     groupSyncRead.txRxPacket() # 설정된 다이나믹셀의 모든 위치를 읽는 명령을 전송, groupSyncRead.addParam(dxl_id)가 선행 되어야함
